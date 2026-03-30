@@ -34,6 +34,7 @@ CONFIG = dict(
 # 1. Load model + tokenizer
 # =============================================================================
 print(f"Loading {MODEL_NAME}...")
+print("  (First run downloads ~350 MB — after that it loads from cache instantly)")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 tokenizer.pad_token = tokenizer.eos_token
 

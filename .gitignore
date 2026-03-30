@@ -1,4 +1,5 @@
 checkpoints/
 data/input.txt
+memory/
 __pycache__/
 *.pyc
