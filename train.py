@@ -16,8 +16,6 @@ Adjust the CONFIG block below to change model size or training length.
 import os
 import math
 import time
-import urllib.request
-
 import torch
 
 from model import GPT
@@ -30,37 +28,34 @@ CONFIG = dict(
     n_embd     = 128,    # embedding dimension  (bigger = smarter, slower)
     n_heads    = 4,      # attention heads      (must divide n_embd evenly)
     n_layers   = 4,      # transformer blocks   (deeper = smarter, slower)
-    block_size = 128,    # context window       (how many chars the model sees at once)
+    block_size = 64,     # context window       (how many chars the model sees at once)
     dropout    = 0.1,
 
     # ── training ──────────────────────────────────────────────────────────────
     batch_size    = 16,     # sequences per training step
-    max_steps     = 5000,   # total training steps  (raise to 20000+ for better quality)
+    max_steps     = 8000,   # total training steps  (raise to 20000+ for better quality)
     eval_interval = 100,    # print loss every N steps
     learning_rate = 3e-4,
 
     # ── data ──────────────────────────────────────────────────────────────────
-    data_path  = "data/input.txt",
+    data_path  = "data/robot_chat.txt",
     train_split= 0.9,       # 90% train, 10% validation
 
     # ── output ────────────────────────────────────────────────────────────────
     checkpoint_dir = "checkpoints",
 )
 
-DATA_URL = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
-
 # =============================================================================
 # 1. Get the data
 # =============================================================================
 
 def download_data():
-    os.makedirs("data", exist_ok=True)
     if not os.path.exists(CONFIG["data_path"]):
-        print("Downloading Tiny Shakespeare dataset...")
-        urllib.request.urlretrieve(DATA_URL, CONFIG["data_path"])
-        print(f"  Saved to {CONFIG['data_path']}")
-    else:
-        print(f"Data already exists at {CONFIG['data_path']}")
+        raise FileNotFoundError(
+            f"Training data not found at '{CONFIG['data_path']}'.\n"
+            "Make sure data/robot_chat.txt exists."
+        )
+    print(f"Data: {CONFIG['data_path']}")
 
 # =============================================================================
 # 2. Build vocabulary and encode the text
