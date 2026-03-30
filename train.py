@@ -34,9 +34,9 @@ CONFIG = dict(
     dropout    = 0.1,
 
     # ── training ──────────────────────────────────────────────────────────────
-    batch_size    = 32,     # sequences per training step
+    batch_size    = 16,     # sequences per training step
     max_steps     = 5000,   # total training steps  (raise to 20000+ for better quality)
-    eval_interval = 500,    # print loss every N steps
+    eval_interval = 100,    # print loss every N steps
     learning_rate = 3e-4,
 
     # ── data ──────────────────────────────────────────────────────────────────
@@ -159,8 +159,8 @@ def main():
 
     # ── training loop ─────────────────────────────────────────────────────────
     print(f"\nTraining for {CONFIG['max_steps']:,} steps...")
-    print(f"{'Step':>6}  {'Train Loss':>10}  {'Val Loss':>10}  {'Time':>8}")
-    print("-" * 45)
+    print(f"{'Step':>6}  {'Train Loss':>10}  {'Val Loss':>10}  {'Time':>8}  ETA")
+    print("-" * 55)
 
     best_val_loss = float("inf")
     t0 = time.time()
@@ -176,7 +176,10 @@ def main():
             losses = estimate_loss(model, train_data, val_data,
                                    CONFIG["block_size"], CONFIG["batch_size"], device)
             elapsed = time.time() - t0
-            print(f"{step:>6}  {losses['train']:>10.4f}  {losses['val']:>10.4f}  {elapsed:>7.1f}s")
+            steps_per_sec = (step + 1) / elapsed if elapsed > 0 else 0
+            remaining = (CONFIG["max_steps"] - step) / steps_per_sec if steps_per_sec > 0 else 0
+            eta = f"{remaining/60:.0f}m" if remaining > 60 else f"{remaining:.0f}s"
+            print(f"{step:>6}  {losses['train']:>10.4f}  {losses['val']:>10.4f}  {elapsed:>7.1f}s  ETA {eta}")
 
             # save best checkpoint
             if losses["val"] < best_val_loss:
