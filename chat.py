@@ -136,10 +136,10 @@ def load_model(path, device):
     tokenizer = AutoTokenizer.from_pretrained(path)
     tokenizer.pad_token = tokenizer.eos_token
 
+    from transformers import AutoModelForCausalLM
     if is_tinyllama(path):
         # TinyLlama from Colab — load LoRA weights
         from peft import PeftModel
-        from transformers import AutoModelForCausalLM
         base = AutoModelForCausalLM.from_pretrained(
             "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
             torch_dtype=torch.float32,
