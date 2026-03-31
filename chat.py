@@ -116,10 +116,8 @@ SYSTEM_PROMPT = (
 )
 
 def is_tinyllama(path):
-    cfg = os.path.join(path, "config.json")
-    if not os.path.exists(cfg):
-        return False
-    return "llama" in open(cfg).read().lower()
+    # LoRA adapters saved by PEFT have adapter_config.json instead of config.json
+    return os.path.exists(os.path.join(path, "adapter_config.json"))
 
 def load_model(path, device):
     if not os.path.exists(path):
