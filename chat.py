@@ -2,7 +2,8 @@
 chat.py — talk to Noodle.
 
 Usage:
-    python chat.py
+    python chat.py                        # uses distilgpt2 model (from finetune.py)
+    python chat.py --model noodle_model   # uses TinyLlama model (from Colab)
     python chat.py --temp 0.7
 
 Type your message and press Enter. Type 'quit' to exit.
@@ -19,6 +20,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL_PATH  = "checkpoints/robot_gpt"
+TINYLLAMA_PATH = "noodle_model"
 MEMORY_FILE = "memory/memory.json"
 CONV_LOG    = "memory/conversations.log"
 
@@ -107,22 +109,64 @@ def log_conversation(user_input, reply, memory):
 # Model
 # =============================================================================
 
+SYSTEM_PROMPT = (
+    "You are Noodle, a fun casual robot companion. "
+    "Guy is your user. Guy is building a robot and likes coding. "
+    "Be casual, short, and a bit cheeky."
+)
+
+def is_tinyllama(path):
+    cfg = os.path.join(path, "config.json")
+    if not os.path.exists(cfg):
+        return False
+    return "llama" in open(cfg).read().lower()
+
 def load_model(path, device):
     if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"No fine-tuned model at '{path}'.\n"
-            "Run  python finetune.py  first."
-        )
+        # auto-detect which model to load
+        if os.path.exists(TINYLLAMA_PATH):
+            path = TINYLLAMA_PATH
+        else:
+            raise FileNotFoundError(
+                f"No model found at '{path}'.\n"
+                "Run  python finetune.py  OR  use the Colab notebook and put noodle_model/ here."
+            )
+
+    print(f"Loading model from {path}...")
     tokenizer = AutoTokenizer.from_pretrained(path)
     tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(path).to(device)
+
+    if is_tinyllama(path):
+        # TinyLlama from Colab — load LoRA weights
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM
+        base = AutoModelForCausalLM.from_pretrained(
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            torch_dtype=torch.float32,
+        ).to(device)
+        model = PeftModel.from_pretrained(base, path).to(device)
+        model._is_tinyllama = True
+    else:
+        model = AutoModelForCausalLM.from_pretrained(path).to(device)
+        model._is_tinyllama = False
+
     model.eval()
     return model, tokenizer
 
 
 def get_reply(model, tokenizer, context, history, temperature, top_k, device,
               max_new_tokens=80):
-    prompt = context + history
+
+    if getattr(model, "_is_tinyllama", False):
+        # TinyLlama uses a structured chat prompt
+        prompt = (
+            f"<|system|>\n{SYSTEM_PROMPT}</s>\n"
+            f"<|user|>\n{history.split('Guy:')[-1].split('Noodle:')[0].strip()}</s>\n"
+            f"<|assistant|>\n"
+        )
+    else:
+        prompt = context + history
+
     inputs = tokenizer(prompt, return_tensors="pt",
                        truncation=True, max_length=900).to(device)
     input_len = inputs.input_ids.shape[1]
@@ -130,21 +174,19 @@ def get_reply(model, tokenizer, context, history, temperature, top_k, device,
     with torch.no_grad():
         output = model.generate(
             inputs.input_ids,
-            attention_mask    = inputs.attention_mask,
-            max_new_tokens    = max_new_tokens,
-            temperature       = temperature,
-            top_k             = top_k,
-            do_sample         = True,
-            pad_token_id      = tokenizer.eos_token_id,
+            attention_mask = inputs.attention_mask,
+            max_new_tokens = max_new_tokens,
+            temperature    = temperature,
+            top_k          = top_k,
+            do_sample      = True,
+            pad_token_id   = tokenizer.eos_token_id,
         )
 
     new_tokens = output[0, input_len:]
     reply = tokenizer.decode(new_tokens, skip_special_tokens=True)
 
-    # keep only the first line (end of Noodle's turn)
-    reply = reply.split("\n")[0].strip()
-
-    # cut off if Guy's turn starts bleeding in
+    # clean up
+    reply = reply.split("</s>")[0].split("<|")[0].split("\n")[0].strip()
     for tag in ["Guy:", "User:"]:
         if tag in reply:
             reply = reply.split(tag)[0].strip()
