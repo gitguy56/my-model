@@ -112,6 +112,7 @@ def load_model(device):
         torch_dtype=torch.float16 if device == "cuda" else torch.float32,
     ).to(device)
     model.eval()
+    model.generation_config.max_length = None   # silence the max_new_tokens warning
     return model, tokenizer
 
 
